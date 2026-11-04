@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Reload Page",
+        "description": "Adds the Reload Page card to all dashboards. There is nothing to configure here: the timer and the look are set in the card."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Reload Page is already set up."
+    }
+  }
+}
