@@ -3,6 +3,7 @@ const CARD = "reload-page-card";
 const DEFAULTS = {
   interval: 30, // minutes
   display: "bar", // bar | title | both
+  title: "Page reload",
   label: "Reload in",
   bar_height: 4, // px
   bar_color: "var(--primary-color)",
@@ -11,19 +12,25 @@ const DEFAULTS = {
   background: false,
 };
 const LABEL_CAP = 30; // minutes; more than this is shown as "30m+"
+// Chip color by the share of the interval left: green, then orange, then red.
+const CHIP_WARN = 0.5;
+const CHIP_ALERT = 0.15;
 const EDIT_RETRY = 15e3; // while the dashboard is being edited, check again after this
 
 const I18N = {
   en: {
     less: "less 1m",
     paused: "Reload paused while editing",
+    paused_short: "Paused",
+    at: "Reload at {time}",
     editor: {
       interval: "Reload every (minutes)",
       display: "Show",
       display_bar: "Progress bar",
-      display_title: "Title",
-      display_both: "Title and progress bar",
-      label: "Title text",
+      display_title: "Title with countdown",
+      display_both: "Title, countdown and progress bar",
+      title: "Title",
+      label: "Countdown text",
       bar_height: "Bar thickness (px)",
       bar_color: "Bar color",
       bar_background: "Bar track color",
@@ -35,13 +42,16 @@ const I18N = {
   uk: {
     less: "less 1m",
     paused: "Оновлення на паузі під час редагування",
+    paused_short: "Пауза",
+    at: "Оновлення о {time}",
     editor: {
       interval: "Оновлювати кожні (хвилин)",
       display: "Показувати",
       display_bar: "Прогрес-бар",
-      display_title: "Заголовок",
-      display_both: "Заголовок і прогрес-бар",
-      label: "Текст заголовка",
+      display_title: "Заголовок з відліком",
+      display_both: "Заголовок, відлік і прогрес-бар",
+      title: "Заголовок",
+      label: "Текст відліку",
       bar_height: "Товщина бару (px)",
       bar_color: "Колір бару",
       bar_background: "Колір доріжки бару",
@@ -177,10 +187,18 @@ class ReloadPageCard extends HTMLElement {
     const radius = c.rounded ? `${c.bar_height / 2}px` : "0";
     this.shadowRoot.innerHTML = `
       <style>
-        ha-card { padding: ${showTitle ? "8px 12px" : "4px 0"}; overflow: hidden; }
+        ha-card { padding: ${showTitle ? (c.background ? "12px 16px" : "4px 0") : "4px 0"}; overflow: hidden; }
         ha-card.flat { background: none; border: none; box-shadow: none; }
-        .title { font-size: 14px; color: var(--secondary-text-color); line-height: 20px; }
-        .title + .track { margin-top: 6px; }
+        .header { display: flex; align-items: center; gap: 8px; }
+        .header .title { flex: 1; font-size: 1.2em; font-weight: 500; }
+        .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 12px;
+          font-size: .85em; white-space: nowrap; background: var(--secondary-background-color); color: var(--primary-text-color); }
+        .chip.ok { background: rgba(76,175,80,.15); color: var(--success-color, #4caf50); }
+        .chip.warn { background: rgba(255,152,0,.15); color: var(--warning-color, #ff9800); }
+        .chip.alert { background: rgba(244,67,54,.15); color: var(--error-color, #f44336); }
+        .chip.paused { background: rgba(3,155,229,.15); color: var(--info-color, #039be5); }
+        .chip ha-icon { --mdc-icon-size: 16px; }
+        .header + .track { margin-top: 8px; }
         .track { height: ${Number(c.bar_height) || DEFAULTS.bar_height}px; background: ${c.bar_background};
           border-radius: ${radius}; overflow: hidden; }
         .fill { height: 100%; background: ${c.bar_color}; border-radius: ${radius};
@@ -188,7 +206,8 @@ class ReloadPageCard extends HTMLElement {
         @keyframes reload-page-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
       </style>
       <ha-card class="${c.background ? "" : "flat"}">
-        ${showTitle ? `<div class="title"></div>` : ""}
+        ${showTitle ? `<div class="header"><div class="title">${esc(c.title)}</div>
+          <span class="chip"><ha-icon icon="mdi:refresh"></ha-icon><span class="left"></span></span></div>` : ""}
         ${showBar ? `<div class="track"><div class="fill"></div></div>` : ""}
       </ha-card>`;
     this._sync();
@@ -214,10 +233,16 @@ class ReloadPageCard extends HTMLElement {
       }
     }
 
-    const title = this.shadowRoot.querySelector(".title");
+    const chip = this.shadowRoot.querySelector(".chip");
     clearTimeout(this._labelTimer);
-    if (title) {
-      title.textContent = left > 0 ? `${this._config.label} ${remainingLabel(left, t)}`.trim() : t.paused;
+    if (chip) {
+      const share = left / total;
+      const cls = left <= 0 ? "paused" : share > CHIP_WARN ? "ok" : share > CHIP_ALERT ? "warn" : "alert";
+      chip.className = `chip ${cls}`;
+      chip.querySelector(".left").textContent =
+        left > 0 ? `${this._config.label} ${remainingLabel(left, t)}`.trim() : t.paused_short;
+      const at = new Date(timer.deadline()).toLocaleTimeString(this._hass?.locale?.language, { hour: "2-digit", minute: "2-digit" });
+      chip.title = left > 0 ? t.at.replace("{time}", at) : t.paused;
       if (left > 0) this._labelTimer = setTimeout(() => this._sync(), (left % 6e4 || 6e4) + 50);
     }
   }
@@ -271,7 +296,9 @@ class ReloadPageCardEditor extends HTMLElement {
       <select data-field="display">
         ${display.map(([v, l]) => `<option value="${v}" ${c.display === v ? "selected" : ""}>${l}</option>`).join("")}
       </select>
-      ${c.display !== "bar" ? `<label>${t.label}</label>
+      ${c.display !== "bar" ? `<label>${t.title}</label>
+        <input type="text" data-field="title" value="${esc(c.title)}">
+        <label>${t.label}</label>
         <input type="text" data-field="label" value="${esc(c.label)}">` : ""}
       ${c.display !== "title" ? `<label>${t.bar_height}</label>
         <input type="number" min="1" max="40" step="1" data-field="bar_height" value="${esc(c.bar_height)}">
