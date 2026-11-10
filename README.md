@@ -21,7 +21,7 @@ type: custom:reload-page-card
 interval: 30                 # minutes between reloads
 display: bar                 # bar | title | both
 title: Page reload           # header title (title / both)
-show_title: true             # false = countdown chip only
+show_title: true             # false = countdown chip only (with `both`: bar and chip on one row)
 label: Reload in             # countdown chip text before the time left
 bar_height: 4                # px
 bar_color: var(--primary-color)

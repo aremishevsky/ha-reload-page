@@ -215,6 +215,9 @@ class ReloadPageCard extends HTMLElement {
     const c = this._config;
     const showTitle = c.display !== "bar";
     const showBar = c.display !== "title";
+    // Bar and countdown without a title fit on one row.
+    const inline = showTitle && showBar && !c.show_title;
+    const bar = `<div class="track"><div class="fill"></div></div>`;
     const radius = c.rounded ? `${c.bar_height / 2}px` : "0";
     this.shadowRoot.innerHTML = `
       <style>
@@ -228,6 +231,7 @@ class ReloadPageCard extends HTMLElement {
           background: color-mix(in srgb, var(--chip-color) 15%, transparent); }
         .chip ha-icon { --mdc-icon-size: 16px; }
         .header + .track { margin-top: 8px; }
+        .header .track { flex: 1; }
         .track { height: ${Number(c.bar_height) || DEFAULTS.bar_height}px; background: ${c.bar_background};
           border-radius: ${radius}; overflow: hidden; }
         .fill { height: 100%; background: ${c.bar_color}; border-radius: ${radius};
@@ -235,9 +239,9 @@ class ReloadPageCard extends HTMLElement {
         @keyframes reload-page-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
       </style>
       <ha-card class="${c.background ? "" : "flat"}">
-        ${showTitle ? `<div class="header">${c.show_title ? `<div class="title">${esc(c.title)}</div>` : ""}
+        ${showTitle ? `<div class="header">${c.show_title ? `<div class="title">${esc(c.title)}</div>` : inline ? bar : ""}
           <span class="chip"><ha-icon icon="mdi:refresh"></ha-icon><span class="left"></span></span></div>` : ""}
-        ${showBar ? `<div class="track"><div class="fill"></div></div>` : ""}
+        ${showBar && !inline ? bar : ""}
       </ha-card>`;
     this._sync();
   }
