@@ -6,7 +6,7 @@ Useful for wall tablets and always-open dashboards: some custom cards (charts in
 
 ## Install
 
-1. HACS → ⋮ → **Custom repositories** → add `https://github.com/aremishevsky/ha-reload-page`, type **Integration**.
+1. HACS → ⋮ → **Custom repositories** → add `https://github.com/aremishevsky/ha-reload-page`, type **Integration**. On Home Assistant 2026.11 and newer, HACS is **Settings → Marketplace**: use **Add from link**.
 2. Install **Reload Page** and restart Home Assistant.
 3. Settings → Devices & services → **Add integration** → **Reload Page**.
 
@@ -15,6 +15,13 @@ The integration serves the card and loads it on every dashboard, so you don't ad
 ## Card
 
 Edit dashboard → **Add card** → **Reload Page**. All options are in the visual editor.
+
+| | |
+|---|---|
+| `display: bar` | ![Progress bar only](docs/bar.png) |
+| `display: both` with a title | ![Title, countdown chip and bar](docs/title.png) |
+| `display: both`, `show_title: false` | ![Bar and countdown chip on one row](docs/inline.png) |
+| Countdown colors: more than `warn_at`% left, less than `warn_at`%, less than `alert_at`% | ![Green, orange and red countdown chips](docs/colors.png) |
 
 ```yaml
 type: custom:reload-page-card
@@ -61,7 +68,26 @@ cards:
       - sensor.solar_power_total
 ```
 
-- New inner cards are built first and swapped in, so the card never shows empty; the old ones are removed and their Plotly charts purged.
+- New inner cards are built first and swapped in, so the card never shows empty; the old ones are removed from the page.
 - Each Reload Content card has its own countdown; tapping the chip re-creates the content right away.
-- Freeing memory still depends on the inner cards: a card that keeps its own timers or subscriptions after it leaves the page stays in memory. For a guaranteed clean state keep a Reload Page card with a long interval as well.
+- It does **not** free memory on current Home Assistant versions, see below. Use it to refresh what cards show, not as a fix for memory growth.
 - `window.__reloadContentStats` counts re-creations, for measuring memory.
+
+## Memory: what re-creating cards does and doesn't free
+
+Measured on Home Assistant 2026.11.1 in Chrome, with `performance.memory` and `WeakRef` checks (an object counts as freed when its `WeakRef` comes back empty after the browser collects garbage).
+
+| Test | Result |
+|---|---|
+| Reload Content with a Plotly Graph Card (14 traces, 24 h), re-created every minute for 15 minutes | Lowest heap between garbage collections grew from ~111 MB to ~240 MB, about **8 MB per re-creation** |
+| Full page reload after that | Heap dropped from 265 MB to **93 MB**, then started growing again at the same rate |
+| Old Plotly Graph Cards after re-creation (plotly-graph-card 3.8.2 and 4.0.2) | **All kept in memory**, although they were off the page and no longer redrew |
+| Old built-in cards (`tile`, `entities`) after re-creation | **All kept in memory** |
+| `hui-tile-card` made with `createCardElement` (or `document.createElement`), never added to the page | **All kept in memory** |
+| Plain `div` and simple custom elements, same test | Freed |
+
+What this means:
+
+- Once a Home Assistant card element is created, something keeps a reference to it, so removing it from the page doesn't free it. This is not specific to Plotly or to this card; we didn't find what holds the reference (that needs a heap snapshot in DevTools).
+- Re-creating cards therefore makes memory grow faster, not slower. The old `periodic-card-reload` approach (re-create a chart every few minutes) leaks the same way: in our test, 20 re-creations took the page from 162 MB to 397 MB.
+- **A full page reload is the only thing that brings memory back.** For always-open dashboards use the Reload Page card (for example every 30 minutes) and avoid cards that re-create other cards.
