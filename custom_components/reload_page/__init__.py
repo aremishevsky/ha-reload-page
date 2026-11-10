@@ -11,17 +11,21 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 
-from .const import CARD_URL, DOMAIN
+from .const import CARD_URL, CONTENT_CARD_URL, DOMAIN
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Serve the Lovelace card and load it on every dashboard."""
-    card = Path(__file__).parent / "frontend" / "reload-page-card.js"
-    await hass.http.async_register_static_paths([StaticPathConfig(CARD_URL, str(card), False)])
+    """Serve the Lovelace cards and load them on every dashboard."""
+    frontend = Path(__file__).parent / "frontend"
+    cards = {CARD_URL: "reload-page-card.js", CONTENT_CARD_URL: "reload-content-card.js"}
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(url, str(frontend / name), False) for url, name in cards.items()]
+    )
     version = (await async_get_integration(hass, DOMAIN)).version
-    add_extra_js_url(hass, f"{CARD_URL}?v={version}")
+    for url in cards:
+        add_extra_js_url(hass, f"{url}?v={version}")
     return True
 
 

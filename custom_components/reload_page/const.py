@@ -2,3 +2,4 @@
 DOMAIN = "reload_page"
 
 CARD_URL = "/reload_page/reload-page-card.js"
+CONTENT_CARD_URL = "/reload_page/reload-content-card.js"

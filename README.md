@@ -45,3 +45,23 @@ How it works:
 - The chip shows the time left in whole minutes: `30m+` when there are more than 30 minutes left, then `29m` … `1m`, and `less 1m` in the last minute.
 - The bar is a single CSS animation; nothing runs in JavaScript between title updates (once a minute).
 - While the dashboard is in edit mode the page is not reloaded; the card checks again every 15 seconds.
+
+## Reload Content card
+
+Holds other cards and re-creates them on a timer instead of reloading the whole page. Same countdown options as the Reload Page card; inner cards go under `cards:` (edit them in the code editor).
+
+```yaml
+type: custom:reload-content-card
+interval: 30                 # minutes between re-creating the inner cards
+display: both
+show_title: false            # bar and countdown on one row
+cards:
+  - type: custom:plotly-graph
+    entities:
+      - sensor.solar_power_total
+```
+
+- New inner cards are built first and swapped in, so the card never shows empty; the old ones are removed and their Plotly charts purged.
+- Each Reload Content card has its own countdown; tapping the chip re-creates the content right away.
+- Freeing memory still depends on the inner cards: a card that keeps its own timers or subscriptions after it leaves the page stays in memory. For a guaranteed clean state keep a Reload Page card with a long interval as well.
+- `window.__reloadContentStats` counts re-creations, for measuring memory.
